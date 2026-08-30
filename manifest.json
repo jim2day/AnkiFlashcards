@@ -1,0 +1,9 @@
+{
+	"id": "anki-flashcards",
+	"name": "Anki Flashcards",
+	"version": "0.1.0",
+	"minAppVersion": "1.5.0",
+	"description": "Generate Anki cards from Markdown headings tagged #card. Obsidian is the source of truth.",
+	"author": "James Boyer",
+	"isDesktopOnly": true
+}
