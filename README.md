@@ -29,12 +29,16 @@ Example front: `Civil Procedure → Personal Jurisdiction → Minimum Contacts �
 
 The Anki deck follows the note’s vault path (`Folder/Note.md` → `Folder::Note`). An optional settings prefix becomes the root deck.
 
+Card backs keep Markdown structure in Anki: numbered/bulleted lists, extra lines on a list item, and paragraph line breaks.
+
 Command palette:
 
-- **Sync current note to Anki** — deletes this file’s previous notes (by tag) and recreates them
+- **Sync current note to Anki** — create new cards, update existing ones in place (review history is kept), and delete Anki notes whose `#card` headings were removed
 - **Ping AnkiConnect** — checks that Anki is reachable
 
-A file with no `#card` headings still deletes that file’s Anki notes if “Delete existing cards before sync” is on.
+Identity is a hash of file path + heading hierarchy + question (stored as an Anki tag, not in Markdown). Renaming the question or moving it under different parents counts as a new card.
+
+A file with no `#card` headings deletes that file’s Anki notes if “Delete cards removed from the note” is on.
 
 Renaming or moving a Markdown file changes its ownership tag, so old Anki notes are left behind. Delete them in Anki or sync the old path once more before moving.
 
@@ -44,4 +48,4 @@ Renaming or moving a Markdown file changes its ownership tag, so old Anki notes 
 - Deck prefix (optional root deck; path supplies the rest)
 - Card tag (default `#card`)
 - Include hierarchy / separator
-- Delete existing cards before sync
+- Delete cards removed from the note

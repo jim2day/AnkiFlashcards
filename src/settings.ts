@@ -6,7 +6,7 @@ export interface AnkiFlashcardsSettings {
 	cardTag: string;
 	includeHierarchy: boolean;
 	hierarchySeparator: string;
-	deleteBeforeSync: boolean;
+	deleteMissingCards: boolean;
 }
 
 export const DEFAULT_SETTINGS: AnkiFlashcardsSettings = {
@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: AnkiFlashcardsSettings = {
 	cardTag: "#card",
 	includeHierarchy: true,
 	hierarchySeparator: " → ",
-	deleteBeforeSync: true,
+	deleteMissingCards: true,
 };
 
 export interface AnkiFlashcardsPluginLike extends Plugin {
@@ -110,13 +110,13 @@ export class AnkiFlashcardsSettingTab extends PluginSettingTab {
 		containerEl.createEl("h3", { text: "Sync behavior" });
 
 		new Setting(containerEl)
-			.setName("Delete existing cards before sync")
+			.setName("Delete cards removed from the note")
 			.setDesc(
-				"Remove Anki notes tagged for this file before creating the current cards. Turning this off can create duplicates.",
+				"When a #card heading disappears from this file, delete its Anki note. Existing cards are updated in place so review history is kept.",
 			)
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.deleteBeforeSync).onChange(async (value) => {
-					this.plugin.settings.deleteBeforeSync = value;
+				toggle.setValue(this.plugin.settings.deleteMissingCards).onChange(async (value) => {
+					this.plugin.settings.deleteMissingCards = value;
 					await this.plugin.saveSettings();
 				}),
 			);

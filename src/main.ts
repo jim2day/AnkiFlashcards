@@ -33,7 +33,13 @@ export default class AnkiFlashcardsPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData()) as AnkiFlashcardsSettings;
+		const data = (await this.loadData()) as Partial<AnkiFlashcardsSettings> & {
+			deleteBeforeSync?: boolean;
+		} | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data) as AnkiFlashcardsSettings;
+		if (data && data.deleteMissingCards === undefined && typeof data.deleteBeforeSync === "boolean") {
+			this.settings.deleteMissingCards = data.deleteBeforeSync;
+		}
 	}
 
 	async saveSettings(): Promise<void> {

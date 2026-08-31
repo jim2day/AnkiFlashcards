@@ -1,9 +1,66 @@
 import { App, Notice } from "obsidian";
-import { AnkiClient, AnkiConnectError } from "./anki";
-import { deckNameFromVaultPath, formatCardContext, formatCardFront } from "./format";
-import { fileOwnershipTag, GLOBAL_ANKI_TAG } from "./ownership";
-import { parseCards } from "./parser";
+import { AnkiClient, AnkiConnectError, type AnkiNoteInput } from "./anki";
+import {
+	deckNameFromVaultPath,
+	formatCardContext,
+	formatCardFront,
+	markdownToAnkiHtml,
+} from "./format";
+import {
+	cardOwnershipTag,
+	cardTagFromNoteTags,
+	fileOwnershipTag,
+	GLOBAL_ANKI_TAG,
+} from "./ownership";
+import { parseCards, type ParsedCard } from "./parser";
 import type { AnkiFlashcardsSettings } from "./settings";
+import { planFileSync, type DesiredCard } from "./sync-plan";
+
+function occurrenceKey(hierarchy: string[], front: string): string {
+	return `${hierarchy.join("\0")}\0${front}`;
+}
+
+export function desiredCardsForFile(
+	vaultPath: string,
+	cards: ParsedCard[],
+	settings: AnkiFlashcardsSettings,
+): DesiredCard[] {
+	const seen = new Map<string, number>();
+	return cards.map((card) => {
+		const key = occurrenceKey(card.hierarchy, card.front);
+		const occurrence = seen.get(key) ?? 0;
+		seen.set(key, occurrence + 1);
+		return {
+			cardTag: cardOwnershipTag(vaultPath, card.hierarchy, card.front, occurrence),
+			front: markdownToAnkiHtml(
+				formatCardFront(
+					card.front,
+					card.hierarchy,
+					settings.includeHierarchy,
+					settings.hierarchySeparator,
+				),
+			),
+			back: markdownToAnkiHtml(card.back),
+			context: markdownToAnkiHtml(
+				formatCardContext(
+					card.hierarchy,
+					settings.includeHierarchy,
+					settings.hierarchySeparator,
+				),
+			),
+		};
+	});
+}
+
+function toAnkiInput(deckName: string, fileTag: string, card: DesiredCard): AnkiNoteInput {
+	return {
+		deckName,
+		front: card.front,
+		back: card.back,
+		context: card.context,
+		tags: [GLOBAL_ANKI_TAG, fileTag, card.cardTag],
+	};
+}
 
 export async function syncCurrentNote(
 	app: App,
@@ -24,55 +81,59 @@ export async function syncCurrentNote(
 		await anki.ensureDeck(deckName);
 		await anki.ensureModel();
 
-		if (settings.deleteBeforeSync) {
-			const existing = await anki.findNotes(`tag:${fileTag}`);
-			await anki.deleteNotes(existing);
-		}
-
 		const markdown = await app.vault.read(file);
-		const cards = parseCards(markdown, settings.cardTag);
+		const parsed = parseCards(markdown, settings.cardTag);
+		const desired = desiredCardsForFile(file.path, parsed, settings);
 
-		if (cards.length === 0) {
-			if (settings.deleteBeforeSync) {
-				new Notice(
-					`Deleted existing cards. No ${settings.cardTag} headings found in ${file.name}.`,
-				);
-			} else {
-				new Notice(`No ${settings.cardTag} headings found in ${file.name}.`);
-			}
-			return;
-		}
-
-		const ids = await anki.addNotes(
-			cards.map((card) => ({
-				deckName,
-				front: formatCardFront(
-					card.front,
-					card.hierarchy,
-					settings.includeHierarchy,
-					settings.hierarchySeparator,
-				),
-				back: card.back,
-				context: formatCardContext(
-					card.hierarchy,
-					settings.includeHierarchy,
-					settings.hierarchySeparator,
-				),
-				tags: [GLOBAL_ANKI_TAG, fileTag],
+		const existingIds = await anki.findNotes(`tag:${fileTag}`);
+		const existingInfo = await anki.notesInfo(existingIds);
+		const plan = planFileSync(
+			desired,
+			existingInfo.map((note) => ({
+				id: note.noteId,
+				front: note.fields.Front?.value ?? "",
+				tags: note.tags,
+				cardIds: note.cards,
 			})),
+			cardTagFromNoteTags,
+			settings.deleteMissingCards,
 		);
 
-		const created = ids.filter((id) => id !== null).length;
-		const failed = ids.length - created;
-
-		if (failed > 0) {
-			new Notice(
-				`Synced ${created} of ${cards.length} cards from ${file.name}. Some notes were not created.`,
-			);
+		if (desired.length === 0 && plan.toDelete.length === 0) {
+			new Notice(`No ${settings.cardTag} headings found in ${file.name}.`);
 			return;
 		}
 
-		new Notice(`Synced ${created} cards from ${file.name}.`);
+		for (const update of plan.toUpdate) {
+			await anki.updateNoteFields(update.id, {
+				Front: update.card.front,
+				Back: update.card.back,
+				Context: update.card.context,
+			});
+			await anki.addTags(
+				[update.id],
+				[GLOBAL_ANKI_TAG, fileTag, update.card.cardTag].join(" "),
+			);
+			await anki.changeDeck(update.cardIds, deckName);
+		}
+
+		const createdIds = await anki.addNotes(
+			plan.toCreate.map((card) => toAnkiInput(deckName, fileTag, card)),
+		);
+		const created = createdIds.filter((id) => id !== null).length;
+		const failed = createdIds.length - created;
+
+		if (plan.toDelete.length > 0) {
+			await anki.deleteNotes(plan.toDelete);
+		}
+
+		const parts = [
+			`created ${created}`,
+			`updated ${plan.toUpdate.length}`,
+			`deleted ${plan.toDelete.length}`,
+		];
+		const suffix = failed > 0 ? ` ${failed} could not be created.` : "";
+		new Notice(`Synced ${file.name}: ${parts.join(", ")}.${suffix}`);
 	} catch (error) {
 		const message =
 			error instanceof AnkiConnectError

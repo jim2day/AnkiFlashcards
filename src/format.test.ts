@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deckNameFromVaultPath, formatCardContext, formatCardFront } from "./format";
+import {
+	deckNameFromVaultPath,
+	formatCardContext,
+	formatCardFront,
+	markdownToAnkiHtml,
+} from "./format";
 
 describe("formatCardFront", () => {
 	it("joins parent headings and the question into one chain", () => {
@@ -27,6 +32,40 @@ describe("formatCardFront", () => {
 describe("formatCardContext", () => {
 	it("joins parent headings only", () => {
 		expect(formatCardContext(["A", "B"], true, " → ")).toBe("A → B");
+	});
+});
+
+describe("markdownToAnkiHtml", () => {
+	it("turns numbered lists into ordered HTML lists", () => {
+		expect(
+			markdownToAnkiHtml(`1. First requirement
+2. Second requirement
+3. Third requirement`),
+		).toBe(
+			"<ol><li>First requirement</li><li>Second requirement</li><li>Third requirement</li></ol>",
+		);
+	});
+
+	it("turns bullet lists into unordered HTML lists", () => {
+		expect(markdownToAnkiHtml(`- Alpha\n- Beta`)).toBe("<ul><li>Alpha</li><li>Beta</li></ul>");
+	});
+
+	it("keeps newlines inside a paragraph", () => {
+		expect(markdownToAnkiHtml("Line one\nLine two")).toBe("<p>Line one<br>Line two</p>");
+	});
+
+	it("keeps wrapped lines on a list item", () => {
+		expect(
+			markdownToAnkiHtml(`1. Minimum contacts
+   with the forum
+2. Fair play`),
+		).toBe("<ol><li>Minimum contacts<br>with the forum</li><li>Fair play</li></ol>");
+	});
+
+	it("separates paragraphs around lists", () => {
+		expect(markdownToAnkiHtml("Intro.\n\n1. One\n2. Two\n\nOutro.")).toBe(
+			"<p>Intro.</p><ol><li>One</li><li>Two</li></ol><p>Outro.</p>",
+		);
 	});
 });
 
