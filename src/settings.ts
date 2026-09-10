@@ -71,7 +71,7 @@ export class AnkiFlashcardsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Card tag")
-			.setDesc("Heading token that marks a flashcard. Default is #card.")
+			.setDesc("Heading token that marks a one-way card. Use #card-reversed (or <tag>-reversed) for both directions.")
 			.addText((text) =>
 				text
 					.setPlaceholder(DEFAULT_SETTINGS.cardTag)
@@ -84,7 +84,7 @@ export class AnkiFlashcardsSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Include hierarchy")
-			.setDesc("Prepend parent headings to the card front as one chain, and store them in Context.")
+			.setDesc("Prepend parent headings to the card front as one chain.")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.includeHierarchy).onChange(async (value) => {
 					this.plugin.settings.includeHierarchy = value;

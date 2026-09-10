@@ -3,6 +3,7 @@ import {
 	headingHasCardTag,
 	parseCards,
 	stripCardTag,
+	stripCardTags,
 	stripYamlFrontmatter,
 } from "./parser";
 
@@ -44,6 +45,10 @@ describe("stripCardTag", () => {
 			"What is purposeful availment?",
 		);
 	});
+
+	it("removes #card-reversed before #card", () => {
+		expect(stripCardTags("What is X? #card-reversed", "#card")).toBe("What is X?");
+	});
 });
 
 describe("stripYamlFrontmatter", () => {
@@ -68,11 +73,13 @@ describe("parseCards", () => {
 				front: "What is purposeful availment?",
 				back: "A defendant purposefully directs activity toward the forum state.",
 				hierarchy: ["Civil Procedure", "Personal Jurisdiction", "Minimum Contacts"],
+				reversed: false,
 			},
 			{
 				front: "What is the effects test?",
 				back: "Intentional conduct expressly aimed at the forum may establish contacts.",
 				hierarchy: ["Civil Procedure", "Personal Jurisdiction", "Minimum Contacts"],
+				reversed: false,
 			},
 		]);
 	});
@@ -91,6 +98,7 @@ This is the next section.
 				front: "First question",
 				back: "First answer.",
 				hierarchy: [],
+				reversed: false,
 			},
 		]);
 	});
@@ -110,6 +118,7 @@ More notes.
 			front: "Question",
 			back: "Answer.",
 			hierarchy: ["Topic"],
+			reversed: false,
 		});
 	});
 
@@ -139,11 +148,13 @@ Inner answer.
 				front: "Outer",
 				back: "Outer answer.",
 				hierarchy: [],
+				reversed: false,
 			},
 			{
 				front: "Inner",
 				back: "Inner answer.",
 				hierarchy: ["Outer"],
+				reversed: false,
 			},
 		]);
 	});
@@ -177,6 +188,7 @@ Has a back.
 			front: "Empty back",
 			back: "",
 			hierarchy: [],
+			reversed: false,
 		});
 	});
 
@@ -194,6 +206,7 @@ Answer.
 				front: "Question",
 				back: "Answer.",
 				hierarchy: [],
+				reversed: false,
 			},
 		]);
 	});
@@ -204,5 +217,60 @@ Answer.
 Back.
 `;
 		expect(parseCards(md, "#flash")[0]?.front).toBe("Custom");
+	});
+
+	it("treats #card-reversed as a two-way card", () => {
+		const md = `#### What is purposeful availment? #card-reversed
+
+A defendant purposefully directs activity toward the forum state.
+`;
+		expect(parseCards(md)).toEqual([
+			{
+				front: "What is purposeful availment?",
+				back: "A defendant purposefully directs activity toward the forum state.",
+				hierarchy: [],
+				reversed: true,
+			},
+		]);
+	});
+
+	it("does not treat #card-reversed as a one-way #card", () => {
+		expect(headingHasCardTag("Q #card-reversed", "#card")).toBe(false);
+	});
+
+	it("stops the back at a nested #card-reversed heading", () => {
+		const md = `#### Outer #card
+
+Outer answer.
+
+##### Inner #card-reversed
+
+Inner answer.
+`;
+		expect(parseCards(md)).toEqual([
+			{
+				front: "Outer",
+				back: "Outer answer.",
+				hierarchy: [],
+				reversed: false,
+			},
+			{
+				front: "Inner",
+				back: "Inner answer.",
+				hierarchy: ["Outer"],
+				reversed: true,
+			},
+		]);
+	});
+
+	it("uses <tag>-reversed for a custom card tag", () => {
+		const md = `#### Custom #flash-reversed
+
+Back.
+`;
+		expect(parseCards(md, "#flash")[0]).toMatchObject({
+			front: "Custom",
+			reversed: true,
+		});
 	});
 });

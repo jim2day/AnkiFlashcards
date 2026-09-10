@@ -1,64 +1,43 @@
 import { App, Notice } from "obsidian";
 import { AnkiClient, AnkiConnectError, type AnkiNoteInput } from "./anki";
-import {
-	deckNameFromVaultPath,
-	formatCardContext,
-	formatCardFront,
-	markdownToAnkiHtml,
-} from "./format";
-import {
-	cardOwnershipTag,
-	cardTagFromNoteTags,
-	fileOwnershipTag,
-	GLOBAL_ANKI_TAG,
-} from "./ownership";
-import { parseCards, type ParsedCard } from "./parser";
+import { desiredCardsForFile } from "./cards";
+import { deckNameFromVaultPath } from "./format";
+import { cardTagFromNoteTags, fileOwnershipTag, GLOBAL_ANKI_TAG } from "./ownership";
+import { parseCards } from "./parser";
 import type { AnkiFlashcardsSettings } from "./settings";
 import { planFileSync, type DesiredCard } from "./sync-plan";
 
-function occurrenceKey(hierarchy: string[], front: string): string {
-	return `${hierarchy.join("\0")}\0${front}`;
+function extraFields(modelFields: string[]): Record<string, string> {
+	const extra: Record<string, string> = {};
+	if (modelFields.includes("Context")) {
+		extra.Context = "";
+	}
+	if (modelFields.includes("Reverse")) {
+		extra.Reverse = "";
+	}
+	return extra;
 }
 
-export function desiredCardsForFile(
-	vaultPath: string,
-	cards: ParsedCard[],
-	settings: AnkiFlashcardsSettings,
-): DesiredCard[] {
-	const seen = new Map<string, number>();
-	return cards.map((card) => {
-		const key = occurrenceKey(card.hierarchy, card.front);
-		const occurrence = seen.get(key) ?? 0;
-		seen.set(key, occurrence + 1);
-		return {
-			cardTag: cardOwnershipTag(vaultPath, card.hierarchy, card.front, occurrence),
-			front: markdownToAnkiHtml(
-				formatCardFront(
-					card.front,
-					card.hierarchy,
-					settings.includeHierarchy,
-					settings.hierarchySeparator,
-				),
-			),
-			back: markdownToAnkiHtml(card.back),
-			context: markdownToAnkiHtml(
-				formatCardContext(
-					card.hierarchy,
-					settings.includeHierarchy,
-					settings.hierarchySeparator,
-				),
-			),
-		};
-	});
-}
-
-function toAnkiInput(deckName: string, fileTag: string, card: DesiredCard): AnkiNoteInput {
+function toAnkiInput(
+	deckName: string,
+	fileTag: string,
+	card: DesiredCard,
+	modelFields: string[],
+): AnkiNoteInput {
 	return {
 		deckName,
 		front: card.front,
 		back: card.back,
-		context: card.context,
 		tags: [GLOBAL_ANKI_TAG, fileTag, card.cardTag],
+		extraFields: extraFields(modelFields),
+	};
+}
+
+function noteFields(card: DesiredCard, modelFields: string[]): Record<string, string> {
+	return {
+		Front: card.front,
+		Back: card.back,
+		...extraFields(modelFields),
 	};
 }
 
@@ -79,7 +58,7 @@ export async function syncCurrentNote(
 	try {
 		await anki.ping();
 		await anki.ensureDeck(deckName);
-		await anki.ensureModel();
+		const modelFields = await anki.ensureModel();
 
 		const markdown = await app.vault.read(file);
 		const parsed = parseCards(markdown, settings.cardTag);
@@ -105,11 +84,7 @@ export async function syncCurrentNote(
 		}
 
 		for (const update of plan.toUpdate) {
-			await anki.updateNoteFields(update.id, {
-				Front: update.card.front,
-				Back: update.card.back,
-				Context: update.card.context,
-			});
+			await anki.updateNoteFields(update.id, noteFields(update.card, modelFields));
 			await anki.addTags(
 				[update.id],
 				[GLOBAL_ANKI_TAG, fileTag, update.card.cardTag].join(" "),
@@ -118,7 +93,7 @@ export async function syncCurrentNote(
 		}
 
 		const createdIds = await anki.addNotes(
-			plan.toCreate.map((card) => toAnkiInput(deckName, fileTag, card)),
+			plan.toCreate.map((card) => toAnkiInput(deckName, fileTag, card, modelFields)),
 		);
 		const created = createdIds.filter((id) => id !== null).length;
 		const failed = createdIds.length - created;

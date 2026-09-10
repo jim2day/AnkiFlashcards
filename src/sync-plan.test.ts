@@ -3,7 +3,7 @@ import { cardTagFromNoteTags, cardOwnershipTag } from "./ownership";
 import { planFileSync, type DesiredCard, type ExistingNote } from "./sync-plan";
 
 function card(tag: string, front: string, back = "back"): DesiredCard {
-	return { cardTag: tag, front, back, context: "ctx" };
+	return { cardTag: tag, front, back };
 }
 
 function note(id: number, front: string, tags: string[], cardIds: number[] = [id]): ExistingNote {

@@ -2,7 +2,6 @@ export interface DesiredCard {
 	cardTag: string;
 	front: string;
 	back: string;
-	context: string;
 }
 
 export interface ExistingNote {

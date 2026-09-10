@@ -24,8 +24,10 @@ export function cardIdentityKey(
 	hierarchy: string[],
 	front: string,
 	occurrence: number,
+	direction: "fwd" | "rev" = "fwd",
 ): string {
-	return `${vaultPath}\0${hierarchy.join("\0")}\0${front}\0${occurrence}`;
+	const base = `${vaultPath}\0${hierarchy.join("\0")}\0${front}\0${occurrence}`;
+	return direction === "rev" ? `${base}\0rev` : base;
 }
 
 export function cardOwnershipTag(
@@ -33,8 +35,9 @@ export function cardOwnershipTag(
 	hierarchy: string[],
 	front: string,
 	occurrence: number,
+	direction: "fwd" | "rev" = "fwd",
 ): string {
-	return `${CARD_TAG_PREFIX}${hashString(cardIdentityKey(vaultPath, hierarchy, front, occurrence))}`;
+	return `${CARD_TAG_PREFIX}${hashString(cardIdentityKey(vaultPath, hierarchy, front, occurrence, direction))}`;
 }
 
 export function cardTagFromNoteTags(tags: string[]): string | undefined {

@@ -1,16 +1,14 @@
 export const OBSIDIAN_MODEL_NAME = "Obsidian Basic";
 
+const CARD_1_FRONT = "{{Front}}";
+const CARD_1_BACK = "{{Back}}";
+
 const MODEL_CSS = `.card {
   font-family: arial;
   font-size: 20px;
   text-align: left;
   color: black;
   background-color: white;
-}
-.anki-flashcards-context {
-  margin-top: 1em;
-  font-size: 0.85em;
-  opacity: 0.75;
 }
 .card ol, .card ul {
   margin: 0.4em 0;
@@ -27,8 +25,8 @@ export interface AnkiNoteInput {
 	deckName: string;
 	front: string;
 	back: string;
-	context: string;
 	tags: string[];
+	extraFields?: Record<string, string>;
 }
 
 export interface AnkiNoteInfo {
@@ -61,30 +59,74 @@ export class AnkiClient {
 		await this.invoke("createDeck", { deck: deckName });
 	}
 
-	async ensureModel(): Promise<void> {
+	async ensureModel(): Promise<string[]> {
 		const names = await this.invoke<string[]>("modelNames");
 		if (!names.includes(OBSIDIAN_MODEL_NAME)) {
 			await this.invoke("createModel", {
 				modelName: OBSIDIAN_MODEL_NAME,
-				inOrderFields: ["Front", "Back", "Context"],
+				inOrderFields: ["Front", "Back"],
 				css: MODEL_CSS,
 				cardTemplates: [
 					{
 						Name: "Card 1",
-						Front: "{{Front}}",
-						Back:
-							"{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}{{#Context}}\n<div class=\"anki-flashcards-context\">{{Context}}</div>\n{{/Context}}",
+						Front: CARD_1_FRONT,
+						Back: CARD_1_BACK,
 					},
 				],
 			});
-			return;
+			return this.invoke<string[]>("modelFieldNames", { modelName: OBSIDIAN_MODEL_NAME });
 		}
+
+		const templates = await this.invoke<Record<string, { Front: string; Back: string }>>(
+			"modelTemplates",
+			{ modelName: OBSIDIAN_MODEL_NAME },
+		);
+		const templateNames = Object.keys(templates);
+		const keepName = templateNames.includes("Card 1") ? "Card 1" : templateNames[0];
+		for (const name of templateNames) {
+			if (keepName && name !== keepName) {
+				try {
+					await this.invoke("modelTemplateRemove", {
+						modelName: OBSIDIAN_MODEL_NAME,
+						templateName: name,
+					});
+				} catch {
+					// Anki may refuse to delete a template that still has cards.
+				}
+			}
+		}
+		const remaining = await this.invoke<Record<string, { Front: string; Back: string }>>(
+			"modelTemplates",
+			{ modelName: OBSIDIAN_MODEL_NAME },
+		);
+		const nextTemplates: Record<string, { Front: string; Back: string }> = {};
+		for (const name of Object.keys(remaining)) {
+			nextTemplates[name] = { Front: CARD_1_FRONT, Back: CARD_1_BACK };
+		}
+		if (Object.keys(nextTemplates).length === 0) {
+			nextTemplates["Card 1"] = { Front: CARD_1_FRONT, Back: CARD_1_BACK };
+		}
+		await this.invoke("updateModelTemplates", {
+			model: {
+				name: OBSIDIAN_MODEL_NAME,
+				templates: nextTemplates,
+			},
+		});
 		await this.invoke("updateModelStyling", {
 			model: {
 				name: OBSIDIAN_MODEL_NAME,
 				css: MODEL_CSS,
 			},
 		});
+		try {
+			await this.invoke("modelFieldRemove", {
+				modelName: OBSIDIAN_MODEL_NAME,
+				fieldName: "Context",
+			});
+		} catch {
+			// Already removed, or Anki refused because a leftover template still referenced it.
+		}
+		return this.invoke<string[]>("modelFieldNames", { modelName: OBSIDIAN_MODEL_NAME });
 	}
 
 	async findNotes(query: string): Promise<number[]> {
@@ -116,7 +158,7 @@ export class AnkiClient {
 				fields: {
 					Front: note.front,
 					Back: note.back,
-					Context: note.context,
+					...note.extraFields,
 				},
 				tags: note.tags,
 				options: {
@@ -127,10 +169,7 @@ export class AnkiClient {
 		});
 	}
 
-	async updateNoteFields(
-		noteId: number,
-		fields: { Front: string; Back: string; Context: string },
-	): Promise<void> {
+	async updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void> {
 		await this.invoke("updateNoteFields", {
 			note: {
 				id: noteId,

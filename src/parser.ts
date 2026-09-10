@@ -2,6 +2,7 @@ export interface ParsedCard {
 	front: string;
 	back: string;
 	hierarchy: string[];
+	reversed: boolean;
 }
 
 interface Heading {
@@ -9,10 +10,15 @@ interface Heading {
 	level: number;
 	text: string;
 	isCard: boolean;
+	reversed: boolean;
 }
 
 export function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function reversedCardTag(cardTag: string): string {
+	return `${cardTag}-reversed`;
 }
 
 function cardTagPattern(tag: string): RegExp {
@@ -28,6 +34,18 @@ export function stripCardTag(text: string, cardTag: string): string {
 		.replace(new RegExp(`(^|\\s)${escapeRegExp(cardTag)}(?=\\s|$)`, "g"), "$1")
 		.replace(/[ \t]+/g, " ")
 		.trim();
+}
+
+export function stripCardTags(text: string, cardTag: string): string {
+	return stripCardTag(stripCardTag(text, reversedCardTag(cardTag)), cardTag);
+}
+
+export function headingIsReversed(text: string, cardTag: string): boolean {
+	return headingHasCardTag(text, reversedCardTag(cardTag));
+}
+
+export function headingIsCard(text: string, cardTag: string): boolean {
+	return headingIsReversed(text, cardTag) || headingHasCardTag(text, cardTag);
 }
 
 export function stripYamlFrontmatter(markdown: string): string {
@@ -53,8 +71,9 @@ function parseHeadings(lines: string[], cardTag: string): Heading[] {
 		headings.push({
 			line: i,
 			level: match[1].length,
-			text: stripCardTag(raw, cardTag),
-			isCard: headingHasCardTag(raw, cardTag),
+			text: stripCardTags(raw, cardTag),
+			isCard: headingIsCard(raw, cardTag),
+			reversed: headingIsReversed(raw, cardTag),
 		});
 	}
 	return headings;
@@ -103,6 +122,7 @@ export function parseCards(markdown: string, cardTag = "#card"): ParsedCard[] {
 				front: heading.text,
 				back: extractBack(lines, headings, i),
 				hierarchy: stack.map((item) => item.text),
+				reversed: heading.reversed,
 			});
 		}
 		stack.push(heading);

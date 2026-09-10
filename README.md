@@ -23,7 +23,11 @@ In Anki: **Tools → Add-ons → AnkiConnect → Config**. Add `app://obsidian.m
 
 ## Usage
 
-Mark a heading with `#card`. The heading is the question; the content until the next equal-or-higher heading (or the next `#card` heading) is the back. Parent headings are prepended to the **Front** as one chain (and stored in **Context**).
+Mark a heading with `#card`. The heading is the question; the content until the next equal-or-higher heading (or the next `#card` / `#card-reversed` heading) is the back. Parent headings are prepended to the **Front** only (not repeated as a Context field).
+
+Use `#card-reversed` for both directions. Sync creates **two Anki notes**: question → answer and answer → question. After sync, Browse should show two notes with swapped Front/Back. The notice `created 2` (or `created 1` if the forward note already existed) is the success check.
+
+When reviewing, the front shows the heading chain; the back is only the answer (the chain is not repeated).
 
 Example front: `Civil Procedure → Personal Jurisdiction → Minimum Contacts → What is purposeful availment?`
 
@@ -46,6 +50,6 @@ Renaming or moving a Markdown file changes its ownership tag, so old Anki notes 
 
 - AnkiConnect URL (default `http://127.0.0.1:8765`)
 - Deck prefix (optional root deck; path supplies the rest)
-- Card tag (default `#card`)
+- Card tag (default `#card`; `#card-reversed` is two-way)
 - Include hierarchy / separator
 - Delete cards removed from the note

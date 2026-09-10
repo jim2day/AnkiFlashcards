@@ -27,4 +27,10 @@ describe("card ownership tags", () => {
 		expect(cardOwnershipTag("a.md", ["Civ Pro"], "Other", 0)).not.toBe(base);
 		expect(cardOwnershipTag("a.md", ["Torts"], "Q", 0)).not.toBe(base);
 	});
+
+	it("uses a different id for the reverse-direction note", () => {
+		expect(cardOwnershipTag("a.md", ["Civ Pro"], "Q", 0, "rev")).not.toBe(
+			cardOwnershipTag("a.md", ["Civ Pro"], "Q", 0, "fwd"),
+		);
+	});
 });

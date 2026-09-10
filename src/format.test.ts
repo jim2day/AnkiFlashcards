@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	deckNameFromVaultPath,
-	formatCardContext,
 	formatCardFront,
 	markdownToAnkiHtml,
 } from "./format";
@@ -26,12 +25,6 @@ describe("formatCardFront", () => {
 
 	it("leaves the question unchanged when there are no parents", () => {
 		expect(formatCardFront("Question", [], true, " → ")).toBe("Question");
-	});
-});
-
-describe("formatCardContext", () => {
-	it("joins parent headings only", () => {
-		expect(formatCardContext(["A", "B"], true, " → ")).toBe("A → B");
 	});
 });
 

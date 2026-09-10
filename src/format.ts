@@ -10,17 +10,6 @@ export function formatCardFront(
 	return [...hierarchy, front].join(separator);
 }
 
-export function formatCardContext(
-	hierarchy: string[],
-	includeHierarchy: boolean,
-	separator: string,
-): string {
-	if (!includeHierarchy || hierarchy.length === 0) {
-		return "";
-	}
-	return hierarchy.join(separator);
-}
-
 const ORDERED_ITEM = /^(\s*)\d+\.\s+(.*)$/;
 const UNORDERED_ITEM = /^(\s*)[-*+]\s+(.*)$/;
 
